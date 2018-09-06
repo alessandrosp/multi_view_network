@@ -125,7 +125,9 @@ class SelectionLayer(keras.engine.topology.Layer):
             are 0s but for the diagonal which is the same as d_coefficients.
         """
         num_tokens = d_coefficients.get_shape().as_list()[1]
-        zeros = K.zeros(shape=(num_tokens, num_tokens))
+        zeros = K.constant(0, shape=(num_tokens, num_tokens))
+        # TODO(): eliminates next line.
+        # K.zeros(shape=(num_tokens, num_tokens))
         return tf.matrix_set_diag(
             zeros, K.reshape(d_coefficients, (num_tokens,)))
 
@@ -143,7 +145,13 @@ class SelectionLayer(keras.engine.topology.Layer):
             A tensor of shape (1, embeddings_dim).
         """
         sum = K.sum(K.dot(d_coefficients_diag, x), axis=0)
-        return K.reshape(sum, (1, self.embeddings_dim))
+        return sum #K.reshape(sum, self.embeddings_dim)
+
+    def _compute_selection_output(self, embeddings):
+        m_exp_coefficients = self._compute_m_exp_coefficients(embeddings)
+        d_coefficients = self._compute_d_coefficients(m_exp_coefficients)
+        d_coefficients_diag = self._set_d_coefficients_as_diag(d_coefficients)
+        return self._compute_layer_output(d_coefficients_diag, embeddings)
 
     def call(self, x):
         """Computes the output of the Selection and pass it to the next layer.
@@ -168,13 +176,11 @@ class SelectionLayer(keras.engine.topology.Layer):
         Returns:
             A tensor of shape (1, embeddings_dim).
         """
-        m_exp_coefficients = self._compute_m_exp_coefficients(x)
-        d_coefficients = self._compute_d_coefficients(m_exp_coefficients)
-        d_coefficients_diag = self._set_d_coefficients_as_diag(d_coefficients)
-        return self._compute_layer_output(d_coefficients_diag, x)
+        # x: batch of embeddings
+        return K.map_fn(self._compute_selection_output, x)
 
     def compute_output_shape(self, input_shape):
-        return (1, self.embeddings_dim)
+        return (None, self.embeddings_dim)
 
 
 class ViewLayer(keras.engine.topology.Layer):
@@ -262,16 +268,17 @@ class ViewLayer(keras.engine.topology.Layer):
         if self.view_index == 1 or self.view_index == 'Last':
             return x
 
+        print(x)
         stacked_selections = self._stack_selections(x)
 
         # At this stage the output is still vertical (same shape as
         # the individual selections, e.g. embeddings_dim x 1).
         output = K.tanh(K.dot(self.kernel, stacked_selections))
 
-        return K.reshape(output, (1, self.embeddings_dim))
+        return K.reshape(output, self.embeddings_dim)
 
     def compute_output_shape(self, input_shape):
-        return (1, self.embeddings_dim)
+        return (None, self.embeddings_dim)
 
 
 def BuildMultiViewNetwork(
@@ -309,5 +316,5 @@ def BuildMultiViewNetwork(
     return keras.models.Model(inputs=inputs, outputs=softmax)
 
 
-model = BuildMultiViewNetwork(
-    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)
+# model = BuildMultiViewNetwork(
+#    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)

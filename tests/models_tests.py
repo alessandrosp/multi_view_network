@@ -101,7 +101,7 @@ class TestSelectionLayer(unittest.TestCase):
         x = K.variable([[1, 2, 3], [5, 6, 7]])
         layer_output = K.eval(
             selection_layer._compute_layer_output(d_coefficients_diag, x))
-        expected = np.array([[6, 8, 10]])  # Vertical sum of x.
+        expected = np.array([6, 8, 10])  # Vertical sum of x.
         self.assertTrue(np.array_equal(layer_output, expected))
 
     def test_compute_layer_output_returns_correct_shape(self):
@@ -116,7 +116,7 @@ class TestSelectionLayer(unittest.TestCase):
         layer_output = selection_layer._compute_layer_output(
             d_coefficients_diag, x)
         layer_output_shape = layer_output.get_shape().as_list()
-        self.assertEqual(layer_output_shape, [1, 3])
+        self.assertEqual(layer_output_shape, [3])
 
 
 class TestViewLayer(unittest.TestCase):
