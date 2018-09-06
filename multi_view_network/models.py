@@ -1,8 +1,6 @@
-import ipdb
 import keras
-import keras.engine.topology
 import keras.backend as K
-import numpy as np
+import keras.engine.topology
 import tensorflow as tf
 
 
