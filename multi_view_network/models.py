@@ -340,7 +340,7 @@ def BuildMultiViewNetwork(
         [v1, v2, v3, v4], name='concatenation')
     fully_connected = keras.layers.Dense(
         units=hidden_units, name='fully_connected')(concatenation)
-    dropout = keras.layers.Dropout(rate=dropout_rate)(concatenation)
+    dropout = keras.layers.Dropout(rate=dropout_rate)(fully_connected)
     softmax = keras.layers.Dense(
         units=output_units, activation='softmax',
         name='softmax')(dropout)
