@@ -335,10 +335,13 @@ def BuildStandardMultiViewNetwork(embeddings_dim, hidden_units, output_units):
     v2 = ViewLayer(view_index=2, name='v2')([v1, s2])
     v3 = ViewLayer(view_index=3, name='v3')([v1, v2, s3])
     v4 = ViewLayer(view_index='Last', name='v4')(s4)
-    concatenation = keras.layers.concatenate([v1, v2, v3, v4])
-    fully_connected = keras.layers.Dense(units=hidden_units)(concatenation)
+    concatenation = keras.layers.concatenate(
+        [v1, v2, v3, v4], name='concatenation')
+    fully_connected = keras.layers.Dense(
+        units=hidden_units, name='fully_connected')(concatenation)
     softmax = keras.layers.Dense(
-        units=output_units, activation='softmax')(fully_connected)
+        units=output_units, activation='softmax',
+        name='softmax')(fully_connected)
 
     return keras.models.Model(inputs=inputs, outputs=softmax)
 
