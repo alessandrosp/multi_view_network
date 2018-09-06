@@ -13,15 +13,6 @@ class SelectionLayer(keras.engine.topology.Layer):
     def build(self, input_shape):
         """Initialize the weights for the layer.
 
-        The shape of the weights matrix is computed from the size of the
-        embeddings. Specifically, the matrix can be though as composed by
-        two distinct elements vertically stacked:
-            - A square matrix of size (embeddings_dim, embeddings_dim).
-            - A vector of size (embeddings_dim, 1).
-
-        When self.call() is execute, the two elements are used as part of the
-        same equation.
-
         Args:
             input_shape: (num_rows, num_cols), the size of the bag-of-words
                 feature matrix (as defined in the original paper). Note
