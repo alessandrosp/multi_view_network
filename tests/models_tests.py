@@ -11,21 +11,21 @@ class TestSelectionLayer(unittest.TestCase):
     def _get_selection_layer(self):
         selection_layer = multi_view_network.SelectionLayer()
         # Implenets a simple (4 x 3) matrix for the weights.
-        selection_layer.kernel = K.variable(
-            [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]])
+        selection_layer.major_w = K.variable([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+        selection_layer.minor_w = K.variable([[1, 1, 1]])
         selection_layer.embeddings_dim = 3
         selection_layer.sum_m_exp_coefficients = 2
         return selection_layer
 
     def test_major_w_selects_first_three_rows(self):
         selection_layer = self._get_selection_layer()
-        major_w = K.eval(selection_layer._get_major_w())
+        major_w = K.eval(selection_layer.major_w)
         expected = np.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
         self.assertTrue(np.array_equal(major_w, expected))
 
     def test_minor_w_selects_last_row(self):
         selection_layer = self._get_selection_layer()
-        minor_w = K.eval(selection_layer._get_minor_w())
+        minor_w = K.eval(selection_layer.minor_w)
         expected = np.array([[1, 1, 1]])
         self.assertTrue(np.array_equal(minor_w, expected))
 

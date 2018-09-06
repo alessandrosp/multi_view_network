@@ -28,46 +28,16 @@ class SelectionLayer(keras.engine.topology.Layer):
                 that num_cols is the same as the size of the embeddings.
         """
         self.embeddings_dim = input_shape[1]
-        self.kernel = self.add_weight(name='kernel',
-                                      shape=(self.embeddings_dim+1,
-                                             self.embeddings_dim),
-                                      initializer='uniform',
-                                      trainable=True)
+        self.major_w = self.add_weight(name='major_w',
+                                       shape=(self.embeddings_dim,
+                                              self.embeddings_dim),
+                                       initializer='uniform',
+                                       trainable=True)
+        self.minor_w = self.add_weight(name='minor_w',
+                                       shape=(1, self.embeddings_dim),
+                                       initializer='uniform',
+                                       trainable=True)
         super(SelectionLayer, self).build(input_shape)
-
-    def _get_major_w(self):
-        """Gets the first self.embeddings_dim rows of the weight matrix.
-
-        In equation (3) two different set of weights are used to compute
-        the m-coefficient for a given embedding. One of the two weights
-        is referred to as w(i, h), while the other one as W(i, h). The
-        first set of weights is an vector, while the second one is a
-        square matrix of the same size as the dimensionality of the
-        embeddings. Here, we refer to the vector-weights as minor_w and
-        the matrix-weights as major w.
-
-        Returns:
-            A square matrix (tensor) of size self.embeddings_dim.
-        """
-        return K.slice(
-            self.kernel, (0, 0), (self.embeddings_dim, self.embeddings_dim))
-
-    def _get_minor_w(self):
-        """Gets the last row of the weight matrix.
-
-        In equation (3) two different set of weights are used to compute
-        the m-coefficient for a given embedding. One of the two weights
-        is referred to as w(i, h), while the other one as W(i, h). The
-        first set of weights is an vector, while the second one is a
-        square matrix of the same size as the dimensionality of the
-        embeddings. Here, we refer to the vector-weights as minor_w and
-        the matrix-weights as major w.
-
-        Returns:
-            A vector (tensor) of size (1, self.embeddings_dim).
-        """
-        return K.slice(
-            self.kernel, (self.embeddings_dim, 0), (1, self.embeddings_dim))
 
     def _compute_m_coefficient(self, embedding):
         """Computes the m-coefficient for an embedding.
@@ -83,9 +53,9 @@ class SelectionLayer(keras.engine.topology.Layer):
             The m-coefficient for the embedding as tensor of one element.
         """
         partial = K.reshape(embedding, (1, self.embeddings_dim))
-        partial = K.dot(partial, self._get_major_w())
+        partial = K.dot(partial, self.major_w)
         partial = K.reshape(K.tanh(partial), (self.embeddings_dim, 1))
-        partial = K.dot(self._get_minor_w(), partial)
+        partial = K.dot(self.minor_w, partial)
         # Before returning the final output we extract the first (and only)
         # element of the tensor to avoid returning a tensor of shape (1, 1).
         # This is because in tensor-based libraries there's a difference
