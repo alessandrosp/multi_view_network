@@ -18,7 +18,7 @@ class SelectionLayer(keras.engine.topology.Layer):
                 feature matrix (as defined in the original paper). Note
                 that num_cols is the same as the size of the embeddings.
         """
-        self.embeddings_dim = input_shape[1]
+        self.embeddings_dim = input_shape[2]
         self.major_w = self.add_weight(name='major_w',
                                        shape=(self.embeddings_dim,
                                               self.embeddings_dim),
@@ -288,7 +288,7 @@ def BuildMultiViewNetwork(
             classification task.
 
     """
-    inputs = keras.layers.Input(shape=(embeddings_dim,))
+    inputs = keras.layers.Input(shape=(None, embeddings_dim))
     s1 = SelectionLayer(name='s1')(inputs)
     s2 = SelectionLayer(name='s2')(inputs)
     s3 = SelectionLayer(name='s3')(inputs)
