@@ -1,5 +1,4 @@
 import unittest
-import unittest.mock as mock
 
 import keras.backend as K
 import numpy as np
@@ -118,6 +117,33 @@ class TestSelectionLayer(unittest.TestCase):
             d_coefficients_diag, x)
         layer_output_shape = layer_output.get_shape().as_list()
         self.assertEqual(layer_output_shape, [1, 3])
+
+
+class TestViewLayer(unittest.TestCase):
+
+    def _get_view_layer(self):
+        view_layer = multi_view_network.ViewLayer(view_index=2)
+        # Kernel has to have shape (embeddings_dim, view_index*embeddings_dim).
+        view_layer.kernel = K.variable(
+            [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]])
+        view_layer.embeddings_dim = 3
+        view_layer.size_stacked_selections = 6
+        return view_layer
+
+    def test_stack_selections_returns_right_shape(self):
+        view_layer = self._get_view_layer()
+        x = [K.variable([[1, 2, 3]]), K.variable([[4, 5, 6]])]
+        stacked_selections = view_layer._stack_selections(x)
+        stacked_selections_shape = stacked_selections.get_shape().as_list()
+        expected = [6, 1]
+        self.assertEqual(stacked_selections_shape, expected)
+
+    def test_stack_selections_return_correct_values(self):
+        view_layer = self._get_view_layer()
+        x = [K.variable([[1, 2, 3]]), K.variable([[4, 5, 6]])]
+        stacked_selections = K.eval(view_layer._stack_selections(x))
+        expected = np.array([[1], [2], [3], [4], [5], [6]])
+        self.assertTrue(np.array_equal(stacked_selections, expected))
 
 
 if __name__ == '__main__':
