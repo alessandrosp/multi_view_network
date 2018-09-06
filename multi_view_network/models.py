@@ -270,6 +270,24 @@ class ViewLayer(keras.engine.topology.Layer):
                                       trainable=trainable)
         super(ViewLayer, self).build(input_shape)
 
+    def _stack_selections(self, x):
+        """Vertically stacks selections into one tensor.
+
+        First, concatenates all the selections in x horizontally. This means
+        concatenated_selections will have shapve (1 x len(x)*embeddings_dim).
+        Then, the tensor is reshaped so for it to be vertical.
+
+        Args:
+            x: a list of tensors. Each tensor has shape (1, embeddings_dim).
+
+        Returns:
+            A tensor of shape (len(x)*embeddings_dim, 1).
+        """
+        concatenated_selections = K.concatenate(x)
+
+        return K.reshape(
+            concatenated_selections, (self.size_stacked_selections, 1))
+
     def call(self, x):
         """Computes the output of the View and pass it to the next layer.
 
@@ -285,13 +303,7 @@ class ViewLayer(keras.engine.topology.Layer):
         if self.view_index == 1 or self.view_index == 'Last':
             return x
 
-        # First we concatenate all the selections in x horizontally. This means
-        # concatenated_selections will have shapve (1 x len(x)*embeddings_dim).
-        concatenated_selections = K.concatenate(x)
-
-        # Stacks the selections vertically.
-        stacked_selections = K.reshape(
-            concatenated_selections, (self.size_stacked_selections, 1))
+        stacked_selections = self._stack_selections(x)
 
         # At this stage the output is still vertical (same shape as
         # the individual selections, e.g. embeddings_dim x 1).
