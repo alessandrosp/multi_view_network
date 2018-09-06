@@ -305,7 +305,7 @@ class ViewLayer(keras.engine.topology.Layer):
 
         # At this stage the output is still vertical (same shape as
         # the individual selections, e.g. embeddings_dim x 1).
-        output = K.dot(self.kernel, stacked_selections)
+        output = K.tanh(K.dot(self.kernel, stacked_selections))
 
         return K.reshape(output, (1, self.embeddings_dim))
 
@@ -332,8 +332,8 @@ def BuildStandardMultiViewNetwork(embeddings_dim, hidden_units, output_units):
     s3 = SelectionLayer(name='s3')(inputs)
     s4 = SelectionLayer(name='s4')(inputs)
     v1 = ViewLayer(view_index=1, name='v1')(s1)
-    v2 = ViewLayer(view_index=2, name='v2')([v1, s2])
-    v3 = ViewLayer(view_index=3, name='v3')([v1, v2, s3])
+    v2 = ViewLayer(view_index=2, name='v2')([s1, s2])
+    v3 = ViewLayer(view_index=3, name='v3')([s1, s2, s3])
     v4 = ViewLayer(view_index='Last', name='v4')(s4)
     concatenation = keras.layers.concatenate(
         [v1, v2, v3, v4], name='concatenation')
