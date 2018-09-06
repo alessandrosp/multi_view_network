@@ -313,7 +313,8 @@ class ViewLayer(keras.engine.topology.Layer):
         return (1, self.embeddings_dim)
 
 
-def BuildStandardMultiViewNetwork(embeddings_dim, hidden_units, output_units):
+def BuildMultiViewNetwork(
+        embeddings_dim, hidden_units, dropout_rate, output_units):
     """Builds a Multi-View Network as specified in Guo et al. (2017).
 
     Args:
@@ -339,12 +340,13 @@ def BuildStandardMultiViewNetwork(embeddings_dim, hidden_units, output_units):
         [v1, v2, v3, v4], name='concatenation')
     fully_connected = keras.layers.Dense(
         units=hidden_units, name='fully_connected')(concatenation)
+    dropout = keras.layers.Dropout(rate=dropout_rate)(concatenation)
     softmax = keras.layers.Dense(
         units=output_units, activation='softmax',
-        name='softmax')(fully_connected)
+        name='softmax')(dropout)
 
     return keras.models.Model(inputs=inputs, outputs=softmax)
 
 
-model = BuildStandardMultiViewNetwork(
-    embeddings_dim=3, hidden_units=16, output_units=1)
+model = BuildMultiViewNetwork(
+    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)
