@@ -128,6 +128,7 @@ class TestViewLayer(unittest.TestCase):
             [[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]])
         view_layer.embeddings_dim = 3
         view_layer.size_stacked_selections = 6
+        view_layer.batch_size = 1
         return view_layer
 
     def test_stack_selections_returns_right_shape(self):

@@ -249,9 +249,8 @@ class ViewLayer(keras.engine.topology.Layer):
             A tensor of shape (len(x)*embeddings_dim, 1).
         """
         concatenated_selections = K.concatenate(x)
-
-        return K.reshape(
-            concatenated_selections, (self.size_stacked_selections, 1))
+        return K.reshape(concatenated_selections,
+                         (self.size_stacked_selections, self.batch_size))
 
     def call(self, x):
         """Computes the output of the View and pass it to the next layer.
@@ -268,14 +267,11 @@ class ViewLayer(keras.engine.topology.Layer):
         if self.view_index == 1 or self.view_index == 'Last':
             return x
 
-        print(x)
+        self.batch_size = x[0].get_shape().as_list()[0] or 1
         stacked_selections = self._stack_selections(x)
+        output = K.transpose(K.tanh(K.dot(self.kernel, stacked_selections)))
 
-        # At this stage the output is still vertical (same shape as
-        # the individual selections, e.g. embeddings_dim x 1).
-        output = K.tanh(K.dot(self.kernel, stacked_selections))
-
-        return K.reshape(output, self.embeddings_dim)
+        return output
 
     def compute_output_shape(self, input_shape):
         return (None, self.embeddings_dim)
@@ -316,5 +312,5 @@ def BuildMultiViewNetwork(
     return keras.models.Model(inputs=inputs, outputs=softmax)
 
 
-# model = BuildMultiViewNetwork(
-#    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)
+model = BuildMultiViewNetwork(
+    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)
