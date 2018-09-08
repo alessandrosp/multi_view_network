@@ -1,9 +1,13 @@
+import os
 import unittest
 
 import keras.backend as K
 import numpy as np
 
 import multi_view_network
+
+# Suppress the Your CPU supports instructions that warning.
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
 class TestSelectionLayer(unittest.TestCase):
@@ -155,6 +159,55 @@ class TestViewLayer(unittest.TestCase):
         stacked_selections = K.eval(view_layer._stack_selections(x))
         expected = np.array([[1], [2], [3], [4], [5], [6]])
         self.assertTrue(np.array_equal(stacked_selections, expected))
+
+
+class TestMiltiViewNetwork(unittest.TestCase):
+
+    def test_multi_view_network_trains_fine(self):
+        labels = np.array([[1, 0], [1, 0], [0, 1], [0, 1]])
+        embedded_corpus = np.array([
+            [
+                [1, 1, 1], [2, 2, 2]
+            ],
+            [
+                [1, 1, 1], [4, 4, 4]
+            ],
+            [
+                [1, 1, 1], [6, 6, 6]
+            ],
+            [
+                [1, 1, 1], [8, 8, 8]
+            ],
+        ])
+        model = multi_view_network.BuildMultiViewNetwork(
+            embeddings_dim=3, hidden_units=16, dropout_rate=0, output_units=2)
+        model.compile(optimizer='sgd', loss='categorical_crossentropy')
+        model.fit(embedded_corpus, labels, epochs=10, batch_size=2, verbose=0)
+        self.assertTrue(model.build)
+
+    def test_multi_view_network_trains_fine_with_padded_input(self):
+        labels = np.array([[1, 0], [1, 0], [0, 1], [0, 1]])
+        embedded_corpus = [
+            [
+                [1, 1, 1], [2, 2, 2]
+            ],
+            [
+                [1, 1, 1], [2, 2, 2], [4, 4, 4], [6, 6, 6]
+            ],
+            [
+                [1, 1, 1], [2, 2, 2], [4, 4, 4], [6, 6, 6], [8, 8, 8]
+            ],
+            [
+                [1, 1, 1], [2, 2, 2]
+            ],
+        ]
+        padded_corpus = np.array(
+            multi_view_network.pad_embedded_corpus(embedded_corpus, 3))
+        model = multi_view_network.BuildMultiViewNetwork(
+            embeddings_dim=3, hidden_units=16, dropout_rate=0, output_units=2)
+        model.compile(optimizer='sgd', loss='categorical_crossentropy')
+        model.fit(padded_corpus, labels, epochs=10, batch_size=2, verbose=0)
+        self.assertTrue(model.build)
 
 
 if __name__ == '__main__':

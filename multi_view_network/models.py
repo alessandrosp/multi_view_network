@@ -73,7 +73,8 @@ class SelectionLayer(keras.engine.topology.Layer):
         zeros = K.zeros_like(placeholder)
         return tf.matrix_set_diag(zeros, K.reshape(d_coefficients, (-1, )))
 
-    def _weighted_sum_of_embedded_tokens(self, d_coefficients_diag, embedded_document):
+    def _weighted_sum_of_embedded_tokens(
+            self, d_coefficients_diag, embedded_document):
         weighted_sum = K.sum(
             K.dot(d_coefficients_diag, embedded_document), axis=0)
         return K.reshape(weighted_sum, (1, -1))
@@ -207,41 +208,3 @@ def BuildMultiViewNetwork(
         name='softmax')(dropout)
 
     return keras.models.Model(inputs=inputs, outputs=softmax)
-
-
-model = BuildMultiViewNetwork(
-    embeddings_dim=3, hidden_units=16, dropout_rate=0, output_units=2)
-
-
-if __name__ == '__main__':
-    import numpy as np
-    EMBEDDINGS_MODEL = {
-        'alice': [1, 1, 1],
-        'bob': [1, 1, 1],
-        'charlie': [1, 1, 1],
-        'dany': [1, 1, 1],
-        'loves': [2, 2, 2],
-        'hates': [4, 4, 4],
-        'koalas': [8, 8, 8]
-    }
-    corpus = [
-        'Alice loves',
-        'Bob loves',
-        'Charlie hates',
-        'Dany hates koalas'
-    ]
-    labels = np.array([[1, 0], [1, 0], [0, 1], [0, 1]])
-    tokenized_corpus = [
-        keras.preprocessing.text.text_to_word_sequence(document)
-        for document in corpus]
-    embedded_corpus = []
-    for tokenized_document in tokenized_corpus:
-        embedded_document = []
-        for token in tokenized_document:
-            embedded_document.append(EMBEDDINGS_MODEL[token])
-        embedded_corpus.append(embedded_document)
-
-    data = np.array(pad_embedded_corpus(embedded_corpus, 3))
-    model.compile(
-        optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit(data, labels, epochs=100, batch_size=4)
