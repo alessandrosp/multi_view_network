@@ -92,23 +92,18 @@ class SelectionLayer(keras.engine.topology.Layer):
 
         num_tokens = K.int_shape(embedded_document)[0]
 
-        # Compute m_coefficients
         m_coefficients = K.map_fn(
             self._compute_m_coefficient, embedded_document)
         check_shape(m_coefficients.get_shape().as_list(), [num_tokens, 1])
 
-        # Compute m_exp_coefficients
-        # m_exp_coefficients = K.map_fn(K.exp, m_coefficients)
         m_exp_coefficients = K.map_fn(self._exp_if_not_zero, m_coefficients)
         self.sum_m_exp_coefficients = K.sum(m_exp_coefficients)
         check_shape(m_exp_coefficients.get_shape().as_list(), [num_tokens, 1])
 
-        # Comoute d_coefficients
         d_coefficients = K.map_fn(
             self._compute_d_coefficient, m_exp_coefficients)
         check_shape(d_coefficients.get_shape().as_list(), [num_tokens, 1])
 
-        # Compite
         d_coefficients_diag = self._set_d_coefficients_as_diag(d_coefficients)
         check_shape(
             d_coefficients_diag.get_shape().as_list(),
@@ -159,6 +154,21 @@ class ViewLayer(keras.engine.topology.Layer):
         super(ViewLayer, self).build(input_shape)
 
     def _stack_selections(self, x):
+        """Stacks the various vectors vertically.
+
+        Here x is a list of tensors. Each tensor has
+        shape (batch_size, 1, embeddings_dim). First, the various
+        selections are concatenated. The output of the concatenation
+        is then a tensor (not a list of tensors as per x) with
+        shape (batch_size, 1, view_index*embeddings_dim). Lastly,
+        this tensor is reshaped to be vertical (and the 1 dimension is lost).
+
+        Args:
+            x: [tensor], list of selections.
+
+        Returns:
+            A tensor of shape (view_index*embeddings_dim, batch_size).
+        """
         concatenated_selections = K.concatenate(x)
         return K.reshape(
             concatenated_selections, (self.size_stacked_selections, -1))
