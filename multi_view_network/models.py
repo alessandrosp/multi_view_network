@@ -4,7 +4,16 @@ import keras.engine.topology
 import tensorflow as tf
 
 
-def assert_shape(to_check, expected):
+def check_shape(to_check, expected):
+    """Checks that shape matches expectations.
+
+    In practice, the function simply check whether the two lists
+    are the same and raise an AssertionError if not.
+
+    Args:
+        to_check: [int], the shape to check.
+        expected: [int], the expected shape.
+    """
     try:
         assert to_check == expected
     except AssertionError:
@@ -86,28 +95,28 @@ class SelectionLayer(keras.engine.topology.Layer):
         # Compute m_coefficients
         m_coefficients = K.map_fn(
             self._compute_m_coefficient, embedded_document)
-        assert_shape(m_coefficients.get_shape().as_list(), [num_tokens, 1])
+        check_shape(m_coefficients.get_shape().as_list(), [num_tokens, 1])
 
         # Compute m_exp_coefficients
         # m_exp_coefficients = K.map_fn(K.exp, m_coefficients)
         m_exp_coefficients = K.map_fn(self._exp_if_not_zero, m_coefficients)
         self.sum_m_exp_coefficients = K.sum(m_exp_coefficients)
-        assert_shape(m_exp_coefficients.get_shape().as_list(), [num_tokens, 1])
+        check_shape(m_exp_coefficients.get_shape().as_list(), [num_tokens, 1])
 
         # Comoute d_coefficients
         d_coefficients = K.map_fn(
             self._compute_d_coefficient, m_exp_coefficients)
-        assert_shape(d_coefficients.get_shape().as_list(), [num_tokens, 1])
+        check_shape(d_coefficients.get_shape().as_list(), [num_tokens, 1])
 
         # Compite
         d_coefficients_diag = self._set_d_coefficients_as_diag(d_coefficients)
-        assert_shape(
+        check_shape(
             d_coefficients_diag.get_shape().as_list(),
             [num_tokens, num_tokens])
 
         weighted_sum = self._weighted_sum_of_embedded_tokens(
             d_coefficients_diag, embedded_document)
-        assert_shape(
+        check_shape(
             weighted_sum.get_shape().as_list(), [1, self.embeddings_dim])
 
         return weighted_sum
@@ -162,7 +171,7 @@ class ViewLayer(keras.engine.topology.Layer):
 
         self.batch_size = K.int_shape(x[0])[0]
         stacked_selections = self._stack_selections(x)
-        assert_shape(
+        check_shape(
             stacked_selections.get_shape().as_list(),
             [self.size_stacked_selections, self.batch_size])
         output = K.reshape(
