@@ -54,29 +54,26 @@ class TestSelectionLayer(unittest.TestCase):
         are_values_close = np.isclose(m_coefficients, expected)
         self.assertTrue(np.all(are_values_close))
 
-    def test_compute_m_exp_coefficients_returns_correct_shape(self):
+    def test_exp_if_not_zero_returns_exp_when_not_zero(self):
         selection_layer = self._get_selection_layer()
-        x = K.variable([[1, 1, 1], [1, 1, 1], [1, 1, 1], [1, 1, 1]])
-        m_exp_coefficients = selection_layer._compute_m_exp_coefficients(x)
-        m_exp_coefficients_shape = m_exp_coefficients.get_shape().as_list()
-        self.assertEqual(m_exp_coefficients_shape, [1, 4])
+        m_coefficient = K.variable([1])
+        output = K.eval(selection_layer._exp_if_not_zero(m_coefficient))[0]
+        self.assertTrue(np.isclose(output, 2.7182817))
+
+    def test_exp_if_not_zero_returns_zero_when_zero(self):
+        selection_layer = self._get_selection_layer()
+        m_coefficient = K.variable([0])
+        output = K.eval(selection_layer._exp_if_not_zero(m_coefficient))
+        self.assertEqual(output, 0)
 
     def test_compute_d_coefficient_returns_correct_value(self):
         selection_layer = self._get_selection_layer()
         d_coefficient = selection_layer._compute_d_coefficient(10)
         self.assertEqual(d_coefficient, 5)
 
-    def test_compute_d_coefficients_returns_correct_shape(self):
-        selection_layer = self._get_selection_layer()
-        m_exp_coefficients = K.variable([[1, 1, 1, 1]])
-        d_coefficients = selection_layer._compute_d_coefficients(
-            m_exp_coefficients)
-        d_coefficients_shape = d_coefficients.get_shape().as_list()
-        self.assertEqual(d_coefficients_shape, [1, 4])
-
     def test_set_d_coefficients_as_diag_returns_correct_matrix(self):
         selection_layer = self._get_selection_layer()
-        d_coefficients = K.variable([[1, 2, 3]])
+        d_coefficients = K.variable([[1], [2], [3]])
         d_coefficients_diag = K.eval(
             selection_layer._set_d_coefficients_as_diag(d_coefficients))
         expected = np.array([[1, 0, 0], [0, 2, 0], [0, 0, 3]])
@@ -84,13 +81,13 @@ class TestSelectionLayer(unittest.TestCase):
 
     def test_set_d_coefficients_as_diag_returns_correct_shape(self):
         selection_layer = self._get_selection_layer()
-        d_coefficients = K.variable([[1, 2, 3, 4, 5]])
+        d_coefficients = K.variable([[1], [2], [3], [4], [5]])
         d_coefficients_diag = selection_layer._set_d_coefficients_as_diag(
             d_coefficients)
         d_coefficients_diag_shape = d_coefficients_diag.get_shape().as_list()
         self.assertEqual(d_coefficients_diag_shape, [5, 5])
 
-    def test_compute_layer_output_returns_correct_values(self):
+    def test_weighted_sum_of_embedded_tokens_returns_correct_values(self):
         selection_layer = self._get_selection_layer()
         # Just as a remainder: a square matrix with all 1s in the diagonal
         # and 0s in all other cells is an identity matrix, the equivalent
@@ -99,12 +96,13 @@ class TestSelectionLayer(unittest.TestCase):
         # the vertical sum of values in x.
         d_coefficients_diag = K.variable([[1, 0], [0, 1]])
         x = K.variable([[1, 2, 3], [5, 6, 7]])
-        layer_output = K.eval(
-            selection_layer._compute_layer_output(d_coefficients_diag, x))
-        expected = np.array([6, 8, 10])  # Vertical sum of x.
-        self.assertTrue(np.array_equal(layer_output, expected))
+        weighted_sum = K.eval(
+            selection_layer._weighted_sum_of_embedded_tokens(
+                d_coefficients_diag, x))
+        expected = np.array([[6, 8, 10]])  # Vertical sum of x.
+        self.assertTrue(np.array_equal(weighted_sum, expected))
 
-    def test_compute_layer_output_returns_correct_shape(self):
+    def test_weighted_sum_of_embedded_tokens_returns_correct_shape(self):
         selection_layer = self._get_selection_layer()
         # d_coefficients_diag is a square matrix with shape equals
         # to the number of tokens in x. On the other hand, x has
@@ -113,10 +111,22 @@ class TestSelectionLayer(unittest.TestCase):
         # in _get_selection_layer().
         d_coefficients_diag = K.variable([[1, 0], [0, 1]])
         x = K.variable([[1, 2, 3], [5, 6, 7]])
-        layer_output = selection_layer._compute_layer_output(
+        weighted_sum = selection_layer._weighted_sum_of_embedded_tokens(
             d_coefficients_diag, x)
-        layer_output_shape = layer_output.get_shape().as_list()
-        self.assertEqual(layer_output_shape, [3])
+        weighted_sum_shape = weighted_sum.get_shape().as_list()
+        self.assertEqual(weighted_sum_shape, [1, 3])
+
+    def test_compute_selection_output_same_output_when_padded(self):
+        selection_layer = self._get_selection_layer()
+        embedded_document = K.variable([[1, 2, 3], [5, 6, 7]])
+        embedded_document_padded = K.variable(
+            [[1, 2, 3], [5, 6, 7], [0, 0, 0], [0, 0, 0]])
+        weighted_sum = K.eval(
+            selection_layer._compute_selection_output(embedded_document))
+        weighted_sum_padded = K.eval(
+            selection_layer._compute_selection_output(
+                embedded_document_padded))
+        self.assertTrue(np.array_equal(weighted_sum, weighted_sum_padded))
 
 
 class TestViewLayer(unittest.TestCase):

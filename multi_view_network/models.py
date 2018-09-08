@@ -4,6 +4,31 @@ import keras.engine.topology
 import tensorflow as tf
 
 
+def assert_shape(to_check, expected):
+    try:
+        assert to_check == expected
+    except AssertionError:
+        message = ('Shape doesn\'t meet expecations. I\'m '
+                   'afraid {to_check} != {expected}'.format(to_check=to_check,
+                                                            expected=expected))
+        raise AssertionError(message)
+
+
+def pad_embedded_corpus(embedded_corpus, embeddings_dim):
+    max_num_tokens = 1
+    for embedded_document in embedded_corpus:
+        if len(embedded_document) > max_num_tokens:
+            max_num_tokens = len(embedded_document)
+
+    padded_corpus = []
+    for embedded_document in embedded_corpus:
+        for _ in range(max_num_tokens-len(embedded_document)):
+            embedded_document.append([0]*embeddings_dim)
+        padded_corpus.append(embedded_document)
+
+    return padded_corpus
+
+
 class SelectionLayer(keras.engine.topology.Layer):
     """Selection Layer for the Multi-View Network."""
 
@@ -11,13 +36,6 @@ class SelectionLayer(keras.engine.topology.Layer):
         super(SelectionLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        """Initialize the weights for the layer.
-
-        Args:
-            input_shape: (num_rows, num_cols), the size of the bag-of-words
-                feature matrix (as defined in the original paper). Note
-                that num_cols is the same as the size of the embeddings.
-        """
         self.embeddings_dim = input_shape[2]
         self.major_w = self.add_weight(name='major_w',
                                        shape=(self.embeddings_dim,
@@ -30,23 +48,10 @@ class SelectionLayer(keras.engine.topology.Layer):
                                        trainable=True)
         super(SelectionLayer, self).build(input_shape)
 
-    def _compute_m_coefficient(self, embedding):
-        """Computes the m-coefficient for an embedding.
-
-        This method computes the output of equation (3). In the paper, this
-        coefficient is represented with the letter m, thus the
-        name m-coefficient.
-
-        Args:
-            embedding: a tensor of size (1, self.embeddings_dim).
-
-        Returns:
-            The m-coefficient for the embedding as tensor of one element.
-        """
-        partial = K.reshape(embedding, (1, self.embeddings_dim))
-        partial = K.dot(partial, self.major_w)
-        partial = K.reshape(K.tanh(partial), (self.embeddings_dim, 1))
-        partial = K.dot(self.minor_w, partial)
+    def _compute_m_coefficient(self, embedded_token):
+        partial = K.reshape(embedded_token, (self.embeddings_dim, 1))
+        partial = K.dot(self.major_w, partial)
+        partial = K.dot(self.minor_w, K.tanh(partial))
         # Before returning the final output we extract the first (and only)
         # element of the tensor to avoid returning a tensor of shape (1, 1).
         # This is because in tensor-based libraries there's a difference
@@ -54,170 +59,78 @@ class SelectionLayer(keras.engine.topology.Layer):
         # the same thing from a mathematical point of view.
         return partial[0]
 
-    def _compute_m_exp_coefficients(self, x):
-        """Computes the exp of the m-coeeficients for all tokens in x.
-
-        The details of this passage can be found in (2). The function also
-        sets self.sum_m_exp_coefficients so that it can be used to compute
-        d-coefficients later on (equation 2).
-
-        Args:
-            x: tensor of shape (num_tokens, embeddings_dim). Each row in the
-                matrix is an embedding for a token.
-
-        Returns:
-            A tensor of shape (1, num_tokens) containing the m-coefficients
-            for each of the token.
-        """
-        m_coefficients = K.map_fn(self._compute_m_coefficient, x)
-        m_exp_coefficients = K.map_fn(K.exp, m_coefficients)
-        # Before the layer is actually compiled and trained x is going
-        # to have a None number of tokens.
-        num_tokens = x.get_shape().as_list()[0] or 1
-        self.sum_m_exp_coefficients = K.sum(m_exp_coefficients)
-        return K.reshape(m_exp_coefficients, (1, num_tokens))
+    def _exp_if_not_zero(self, m_coefficient):
+        return K.switch(
+            K.equal(m_coefficient, 0),
+            lambda: K.variable([0]),
+            lambda: K.exp(m_coefficient))
 
     def _compute_d_coefficient(self, m_exp_coefficient):
-        """Computes the d-coefficient for a single token.
-
-        Given the exp of the m-coefficient for a give token this method
-        computes the d-coefficient. Details are given in (2).
-
-        Args:
-            m_exp_coefficient: a scalar-tensor.
-
-        Returns:
-            A scalar-tensor.
-        """
         return m_exp_coefficient / self.sum_m_exp_coefficients
 
-    def _compute_d_coefficients(self, m_exp_coefficients):
-        """Computes the d-coefficients for the tokens.
+    def _set_d_coefficients_as_diag(self, d_coefficients):
+        placeholder = K.dot(d_coefficients, K.transpose(d_coefficients))
+        zeros = K.zeros_like(placeholder)
+        return tf.matrix_set_diag(zeros, K.reshape(d_coefficients, (-1, )))
 
-        Given a tensor of the exp of m-coefficients for all tokens in the
-        document, it computes all relevant d-coefficients (as per 2).
+    def _weighted_sum_of_embedded_tokens(self, d_coefficients_diag, embedded_document):
+        weighted_sum = K.sum(
+            K.dot(d_coefficients_diag, embedded_document), axis=0)
+        return K.reshape(weighted_sum, (1, -1))
 
-        Args:
-            m_exp_coefficients: a tensor of shape (1, num_tokens).
+    def _compute_selection_output(self, embedded_document):
 
-        Returns:
-            A tensor of shape (1, num_tokens).
-        """
+        num_tokens = K.int_shape(embedded_document)[0]
+
+        # Compute m_coefficients
+        m_coefficients = K.map_fn(
+            self._compute_m_coefficient, embedded_document)
+        assert_shape(m_coefficients.get_shape().as_list(), [num_tokens, 1])
+
+        # Compute m_exp_coefficients
+        # m_exp_coefficients = K.map_fn(K.exp, m_coefficients)
+        m_exp_coefficients = K.map_fn(self._exp_if_not_zero, m_coefficients)
+        self.sum_m_exp_coefficients = K.sum(m_exp_coefficients)
+        assert_shape(m_exp_coefficients.get_shape().as_list(), [num_tokens, 1])
+
+        # Comoute d_coefficients
         d_coefficients = K.map_fn(
             self._compute_d_coefficient, m_exp_coefficients)
-        num_tokens = m_exp_coefficients.get_shape().as_list()[1]
-        return K.reshape(d_coefficients, (1, num_tokens))
+        assert_shape(d_coefficients.get_shape().as_list(), [num_tokens, 1])
 
-    def _set_d_coefficients_as_diag(self, d_coefficients):
-        """Set the scores in d_coefficients as the diag of a 0-filled matrix.
-
-        First, a square matrix of zeros is created with the same size as
-        d_coefficients. Then d_coefficients is set to be the diagonal of
-        the square matrix. This is done in order to make the computation
-        for (1) more efficient (this way it can be done as a simple dot
-        product rather than having to iterate through all the embeddings).
-
-        Args:
-            d_coefficients: a tensor of shape (1, num_tokens).
-
-        Returns:
-            A square matrix of size (num_tokens, num_tokens). All the values
-            are 0s but for the diagonal which is the same as d_coefficients.
-        """
-        num_tokens = d_coefficients.get_shape().as_list()[1]
-        zeros = K.constant(0, shape=(num_tokens, num_tokens))
-        # TODO(): eliminates next line.
-        # K.zeros(shape=(num_tokens, num_tokens))
-        return tf.matrix_set_diag(
-            zeros, K.reshape(d_coefficients, (num_tokens,)))
-
-    def _compute_layer_output(self, d_coefficients_diag, x):
-        """Computes the final output of the Selection layer.
-
-        More details available in (1).
-
-        Args:
-            d_coefficients: a tensor of shape (1, num_tokens).
-            x: tensor of shape (num_tokens, embeddings_dim). Each row in the
-                matrix is an embedding for a token.
-
-        Returns:
-            A tensor of shape (1, embeddings_dim).
-        """
-        sum = K.sum(K.dot(d_coefficients_diag, x), axis=0)
-        return sum #K.reshape(sum, self.embeddings_dim)
-
-    def _compute_selection_output(self, embeddings):
-        m_exp_coefficients = self._compute_m_exp_coefficients(embeddings)
-        d_coefficients = self._compute_d_coefficients(m_exp_coefficients)
+        # Compite
         d_coefficients_diag = self._set_d_coefficients_as_diag(d_coefficients)
-        return self._compute_layer_output(d_coefficients_diag, embeddings)
+        assert_shape(
+            d_coefficients_diag.get_shape().as_list(),
+            [num_tokens, num_tokens])
+
+        weighted_sum = self._weighted_sum_of_embedded_tokens(
+            d_coefficients_diag, embedded_document)
+        assert_shape(
+            weighted_sum.get_shape().as_list(), [1, self.embeddings_dim])
+
+        return weighted_sum
 
     def call(self, x):
-        """Computes the output of the Selection and pass it to the next layer.
-
-        Before the output of the selection can be passed to the next layer
-        a series of coefficients need to be computed. These coefficients
-        are simply referred to as d and m in Guo et al. (2017). I decided
-        to keep the same names for consistency. Also note that these
-        coefficients are all computed at the word level (meaning there
-        a d and m coefficient for each embedding in x).
-
-        Fundamentally, the weights defined in self.build() determine
-        how much a word is going to influece the final vector outputted (not
-        at all dissimilar to the way a set of coeeficients determine the
-        final output in a weighted average).
-
-        Args:
-            x: a tensor, where the each row represents a word and the
-                number of columns is determined by the size of the
-                embedding space.
-
-        Returns:
-            A tensor of shape (1, embeddings_dim).
-        """
-        # x: batch of embeddings
         return K.map_fn(self._compute_selection_output, x)
 
     def compute_output_shape(self, input_shape):
-        return (None, self.embeddings_dim)
+        return (None, 1, self.embeddings_dim)
 
 
 class ViewLayer(keras.engine.topology.Layer):
-    """View Layer for the Multi-View Network.
-
-    Args:
-        view_index: int|str, either the index of view (starting
-            from 1) or the keyword 'last'. This is because
-            the last view (as the first one) behaves very
-            differently from the other views.
-    """
 
     def __init__(self, view_index, **kwargs):
         self.view_index = view_index
         super(ViewLayer, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        """Initialize the weights for the layer.
-
-        A few things to keep in mind:
-            - If view_index is 1 or 'Last', then the weights
-              are not trainable (in fact, they're useless as the layer
-              then only output the input).
-            - If view_index is 1 or 'Last' input is expected to be a tensor
-              and input_shape a tuple (i.e. nrows x ncols). In the other cases
-              the input should be a list of tensors and input_shape a list
-              of tuples.
-
-        Args:
-            input_shape: ()|[()], where each tuple is (1, embeddings_dim).
-        """
         if (self.view_index == 1 or self.view_index == 'Last'):
             if not isinstance(input_shape, tuple):
                 raise TypeError(
                     'First and last view should have only 1 input.')
             trainable = False
-            self.embeddings_dim = input_shape[1]
+            self.embeddings_dim = input_shape[2]
             self.size_stacked_selections = 1
         else:
             if not isinstance(input_shape, list):
@@ -225,7 +138,7 @@ class ViewLayer(keras.engine.topology.Layer):
                     'Views other than first and last should have'
                     'multiple inputs')
             trainable = True
-            self.embeddings_dim = input_shape[0][1]
+            self.embeddings_dim = input_shape[0][2]
             self.size_stacked_selections = self.view_index*self.embeddings_dim
 
         self.kernel = self.add_weight(name='kernel',
@@ -236,40 +149,24 @@ class ViewLayer(keras.engine.topology.Layer):
         super(ViewLayer, self).build(input_shape)
 
     def _stack_selections(self, x):
-        """Vertically stacks selections into one tensor.
-
-        First, concatenates all the selections in x horizontally. This means
-        concatenated_selections will have shapve (1 x len(x)*embeddings_dim).
-        Then, the tensor is reshaped so for it to be vertical.
-
-        Args:
-            x: a list of tensors. Each tensor has shape (1, embeddings_dim).
-
-        Returns:
-            A tensor of shape (len(x)*embeddings_dim, 1).
-        """
         concatenated_selections = K.concatenate(x)
-        return K.reshape(concatenated_selections,
-                         (self.size_stacked_selections, self.batch_size))
+        return K.reshape(
+            concatenated_selections, (self.size_stacked_selections, -1))
 
     def call(self, x):
-        """Computes the output of the View and pass it to the next layer.
-
-        Args:
-            x: a tensor or a list of tensors. Each tensor has
-                shape (1, embeddings_dim).
-
-        Returns:
-            A tensor of shape (1, embeddings_dim).
-        """
         # The first and the last view in the network simply pass the
         # output of the first or last selection forward.
         if self.view_index == 1 or self.view_index == 'Last':
-            return x
+            return K.reshape(x, (-1, self.embeddings_dim))
 
-        self.batch_size = x[0].get_shape().as_list()[0] or 1
+        self.batch_size = K.int_shape(x[0])[0]
         stacked_selections = self._stack_selections(x)
-        output = K.transpose(K.tanh(K.dot(self.kernel, stacked_selections)))
+        assert_shape(
+            stacked_selections.get_shape().as_list(),
+            [self.size_stacked_selections, self.batch_size])
+        output = K.reshape(
+            K.tanh(K.dot(self.kernel, stacked_selections)),
+            (-1, self.embeddings_dim))
 
         return output
 
@@ -313,4 +210,38 @@ def BuildMultiViewNetwork(
 
 
 model = BuildMultiViewNetwork(
-    embeddings_dim=3, hidden_units=16, dropout_rate=0.2, output_units=1)
+    embeddings_dim=3, hidden_units=16, dropout_rate=0, output_units=2)
+
+
+if __name__ == '__main__':
+    import numpy as np
+    EMBEDDINGS_MODEL = {
+        'alice': [1, 1, 1],
+        'bob': [1, 1, 1],
+        'charlie': [1, 1, 1],
+        'dany': [1, 1, 1],
+        'loves': [2, 2, 2],
+        'hates': [4, 4, 4],
+        'koalas': [8, 8, 8]
+    }
+    corpus = [
+        'Alice loves',
+        'Bob loves',
+        'Charlie hates',
+        'Dany hates koalas'
+    ]
+    labels = np.array([[1, 0], [1, 0], [0, 1], [0, 1]])
+    tokenized_corpus = [
+        keras.preprocessing.text.text_to_word_sequence(document)
+        for document in corpus]
+    embedded_corpus = []
+    for tokenized_document in tokenized_corpus:
+        embedded_document = []
+        for token in tokenized_document:
+            embedded_document.append(EMBEDDINGS_MODEL[token])
+        embedded_corpus.append(embedded_document)
+
+    data = np.array(pad_embedded_corpus(embedded_corpus, 3))
+    model.compile(
+        optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
+    model.fit(data, labels, epochs=100, batch_size=4)
