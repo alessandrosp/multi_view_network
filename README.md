@@ -4,6 +4,14 @@ This package is based on [End-to-End Multi-View Networks for Text Classification
 
 Feel free reach out to me at aless@ndro.xyz with any feedback.
 
+# Installation
+
+```bash
+pip3 install multi-view-network
+```
+
+Note that as of this module creation, TF and Keras seem to have some problems running with Python 3.7. My recommendation would be to use Python 3.6.
+
 # Basic Usage
 
 Assuming you have your corpus prepared as a list of documents, each represented by a list of embeddings (one per token), you can train the MVN this way:
