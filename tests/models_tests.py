@@ -6,7 +6,7 @@ import numpy as np
 
 import multi_view_network
 
-# Suppress the Your CPU supports instructions that warning.
+# Suppress the Your CPU supports instructions that warning.
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
