@@ -1,3 +1,8 @@
+"""Module containing utilities to use multi_view_network."""
+
+import copy
+
+
 def check_shape(to_check, expected):
     """Checks that shape matches expectations.
 
@@ -40,6 +45,9 @@ def pad_embedded_corpus(embedded_corpus, embeddings_dim):
         Same structure as embedded_corpus but now all embedded_documents
         have the same number of embedded_tokens.
     """
+    # To avoid over-writing the input.
+    embedded_corpus = copy.deepcopy(embedded_corpus)
+
     max_num_tokens = 1
     for embedded_document in embedded_corpus:
         if len(embedded_document) > max_num_tokens:
@@ -52,3 +60,18 @@ def pad_embedded_corpus(embedded_corpus, embeddings_dim):
         padded_corpus.append(embedded_document)
 
     return padded_corpus
+
+
+def cap_embedded_corpus(
+        embedded_corpus, cap_size=None, exclude_if_below_cap=True):
+    if not cap_size:
+        sizes = [len(embedded_document)
+                 for embedded_document in embedded_corpus]
+        cap_size = min(sizes)
+
+    capped_corpus = []
+    for embedded_document in embedded_corpus:
+        if (len(embedded_document[0:cap_size]) >= cap_size
+                or not exclude_if_below_cap):
+            capped_corpus.append(embedded_document[0:cap_size])
+    return capped_corpus
