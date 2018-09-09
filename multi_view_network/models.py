@@ -1,3 +1,34 @@
+"""Main module for multi_view_network, containing all Layers.
+
+This module is based on End-to-End Multi-View Networks for Text Classification
+by Hongyu Guo, Colin Cherry and Jiang Su (2017). Some of the details
+in the paper were not explained with sufficient details, so I had to
+make some guess work.
+
+A few words about the terminology used in this module:
+    - corpus: the set of all documents in a given experiment.
+    - document: a piece of text, e.g. a tweet, an HTML page, a book.
+    - token: often a word but not necessary, a small piece of text computed
+        from a document.
+    - embedding: a numerical representation for a piece of text.
+    - embedded_(corpus|document|token): same as the terms defined above, but
+        in embedding form. E.g. 'Hello world' could be a document made of the
+        tokens 'hello' and 'world'. The embedded version of the document
+        could be [[0, 1, 7], [9, 8, 23]].
+
+Please, contact aless@ndro.xyz for any feedback.
+
+Example:
+    # Assuming embedded_corpus has already been converted
+    # to np.array() of shape (num_documents, num_tokens, embeddings_dim).
+    import multi_view_network
+
+    model = multi_view_network.BuildMultiViewNetwork(
+        embeddings_dim=3, hidden_units=16, dropout_rate=0, output_units=2)
+    model.compile(optimizer='sgd', loss='categorical_crossentropy')
+    model.fit(embedded_corpus, labels, epochs=10, batch_size=2, verbose=0)
+"""
+
 import keras
 import keras.backend as K
 import keras.engine.topology
