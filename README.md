@@ -1,4 +1,4 @@
-# Multi-View Network in Keras
+# Multi-View Network in Keras
 
 This package is based on [End-to-End Multi-View Networks for Text Classification](https://arxiv.org/abs/1704.05907) by Hongyu Guo, Colin Cherry and Jiang Su (2017). The overall architecture of the Multi-View Network (MVN) was not really explained in painstaking details in the paper, so I had to make some guess work.
 
@@ -28,7 +28,7 @@ model.compile(optimizer='sgd', loss='categorical_crossentropy')
 model.fit(data, labels, epochs=200, batch_size=32)
 ```
 
-# More Complex Architectures
+# More Complex Architectures
 
 The `models.py` module contains all the necessary Layers to build MVNs of arbitrary size and complexity. For example:
 
@@ -70,7 +70,7 @@ softmax = keras.layers.Dense(
 model = keras.models.Model(inputs=inputs, outputs=softmax)
 ```
 
-# Utilities
+# Utilities
 
 The `utils.py` module contains a couple of functions that could come in handy when pre-processing your input. As mentioned above, **it's important that when you coerce your list of embedded_documents to `np.array()` all the documents have a same number of embedded_tokens**. Otherwise, the resulting array will have an incorrect `.shape`, which would cause [Keras](https://keras.io/) to throw an error (as the input wouldn't match the expected shape).
 
