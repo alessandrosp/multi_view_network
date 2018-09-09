@@ -7,7 +7,6 @@ from .utils import check_shape
 
 
 class SelectionLayer(keras.engine.topology.Layer):
-    """Selection Layer for the Multi-View Network."""
 
     def __init__(self, **kwargs):
         super(SelectionLayer, self).__init__(**kwargs)
@@ -26,6 +25,14 @@ class SelectionLayer(keras.engine.topology.Layer):
         super(SelectionLayer, self).build(input_shape)
 
     def _compute_m_coefficient(self, embedded_token):
+        """Computes m-coefficient for a single embedding.
+
+        Args:
+            embedded_token: a tensor of shape (self.embeddings_dim,).
+
+        Returns:
+            A tensor of shape (1,).
+        """
         partial = K.reshape(embedded_token, (self.embeddings_dim, 1))
         partial = K.dot(self.major_w, partial)
         partial = K.dot(self.minor_w, K.tanh(partial))
@@ -37,27 +44,47 @@ class SelectionLayer(keras.engine.topology.Layer):
         return partial[0]
 
     def _exp_if_not_zero(self, m_coefficient):
+        """Computes exp() if m_coefficient is not 0, returns 0 otherwise."""
         return K.switch(
             K.equal(m_coefficient, 0),
             lambda: K.variable([0]),
             lambda: K.exp(m_coefficient))
 
     def _compute_d_coefficient(self, m_exp_coefficient):
+        """Computes d-coefficient given exp(m_coefficient)."""
         return m_exp_coefficient / self.sum_m_exp_coefficients
 
     def _set_d_coefficients_as_diag(self, d_coefficients):
+        """Sets d_coefficients as the diagonal of a 0-filled square matrix.
+
+        Args:
+            d_coefficients: tensor of shape (num_tokens, 1).
+
+        Returns:
+            A square matrix tensor of shape (num_tokens, num_tokens). All
+            values in the tensor are 0s but for the diagonal.
+        """
         placeholder = K.dot(d_coefficients, K.transpose(d_coefficients))
         zeros = K.zeros_like(placeholder)
         return tf.matrix_set_diag(zeros, K.reshape(d_coefficients, (-1, )))
 
     def _weighted_sum_of_embedded_tokens(
             self, d_coefficients_diag, embedded_document):
+        """Computes the weighted sum of embedded tokens.
+
+        Args:
+            d_coefficients_diag: tensor of shape (num_tokens, num_tokens).
+            embedded_document: tensor of shape (num_tokens, embeddings_dim).
+
+        Returns:
+            A tensor of shape (1, embeddings_dim).
+        """
         weighted_sum = K.sum(
             K.dot(d_coefficients_diag, embedded_document), axis=0)
         return K.reshape(weighted_sum, (1, -1))
 
     def _compute_selection_output(self, embedded_document):
-
+        """Computes the output of the Selection layer for a document."""
         num_tokens = K.int_shape(embedded_document)[0]
 
         m_coefficients = K.map_fn(
@@ -92,6 +119,14 @@ class SelectionLayer(keras.engine.topology.Layer):
 
 
 class ViewLayer(keras.engine.topology.Layer):
+    """Implementation of the View structure in Guo et al. (2017).
+
+    Args:
+        view_index: int|str, either the index of the view as an integer
+            or the keyword 'last'. This is because the first and the last
+            views in the network behaves very differently from the other
+            ones.
+    """
 
     def __init__(self, view_index, **kwargs):
         self.view_index = view_index
@@ -170,6 +205,7 @@ def BuildMultiViewNetwork(
         embeddings_dim: int, the dimensionality of the embedding space.
         hidden_units: int, the number of units in the "hidden" layer, i.e.
             the last layer before the softmax output layer.
+        dropout_rate: float, probability for a unit to be dropped.
         output_units: int, the number of units in the output layer. Given
             than the output layer uses softmax as an activation function,
             this number should match the number of classes of the
