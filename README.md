@@ -1,8 +1,8 @@
-# Multi-View Network
+# Multi-View Network in Keras
 
-This package is based on [End-to-End Multi-View Networks for Text Classification](https://arxiv.org/abs/1704.05907) by Hongyu Guo, Colin Cherry and Jiang Su (2017). The overall architecture of the MVN was not really explained in painstaking details in the paper, so I had to make some guess work.
+This package is based on [End-to-End Multi-View Networks for Text Classification](https://arxiv.org/abs/1704.05907) by Hongyu Guo, Colin Cherry and Jiang Su (2017). The overall architecture of the Multi-View Network (MVN) was not really explained in painstaking details in the paper, so I had to make some guess work.
 
-Feel free to email aless@ndro.xyz with any feedback.
+Feel free reach out to me at aless@ndro.xyz with any feedback.
 
 # Basic Usage
 
@@ -72,9 +72,9 @@ model = keras.models.Model(inputs=inputs, outputs=softmax)
 
 # Utilities
 
-The `utils.py` module contains a couple of functions that could come in handy when pre-processing your input. As mentioned above, it's important that when you coerce your list of embedded_documents to np.array() all the documents have a same number of embedded_tokens. Otherwise, the resulting array will have an incorrect .shape(), which would cause Keras to throw an error (as the input wouldn't match the expected shape).
+The `utils.py` module contains a couple of functions that could come in handy when pre-processing your input. As mentioned above, **it's important that when you coerce your list of embedded_documents to `np.array()` all the documents have a same number of embedded_tokens**. Otherwise, the resulting array will have an incorrect `.shape`, which would cause [Keras](https://keras.io/) to throw an error (as the input wouldn't match the expected shape).
 
-There are two utility functions you can use to solve this problem: pad_embedded_corpus() and cap_embedded_corpus(). The first one add 0-filled mock embedded_tokens to each document until all documents have the same length. The second one crop each document so that only the first X tokens are kept, achieving the same goal.
+There are two utility functions you can use to solve this problem: pad_embedded_corpus() and cap_embedded_corpus(). The first one adds 0-filled mock embedded_tokens to each document until all documents have the same length. The second one crops each document so that only the first X tokens are maintained, achieving the same result.
 
 For example:
 
@@ -107,4 +107,4 @@ capped_corpus_sizes = [len(lst) for lst in capped_corpus]
 # >>> [1, 1, 1]
 ```
 
-Adding 0-filled vectors to the documents have no effect on the output and training performance of the MVN, and it's thus the recommended way to make sure all embedded_documents have same length.
+Adding 0-filled vectors to the documents has no effect on the output and training performance of the MVN, and it's thus the recommended way to make sure all embedded_documents have the same length.
