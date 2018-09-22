@@ -2,8 +2,7 @@
 
 This module is based on End-to-End Multi-View Networks for Text Classification
 by Hongyu Guo, Colin Cherry and Jiang Su (2017). Some of the details
-in the paper were not explained with sufficient details, so I had to
-make some guess work.
+in the paper were unclear, so I had to make some guess work.
 
 A few words about the terminology used in this module:
     - corpus: the set of all documents in a given experiment.
